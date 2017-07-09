@@ -18,17 +18,17 @@ DoubanFMSongList.prototype = {
         "port": null,
         "path": "/j/v2/redheart/songs",
         "headers": {
-            'accept': "text/javascript, text/html, application/xml, text/xml, */*",
-            'origin': "https://douban.fm",
-            'x-requested-with': "XMLHttpRequest",
-            'user-agent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36",
-            'content-type': "application/x-www-form-urlencoded",
-            'referer': "https://douban.fm/mine/hearts",
-            'accept-encoding': "json",
-            'accept-language': "en-US,en;q=0.8,zh-CN;q=0.6",
+            "accept": "text/javascript, text/html, application/xml, text/xml, */*",
+            "origin": "https://douban.fm",
+            "x-requested-with": "XMLHttpRequest",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36",
+            "content-type": "application/x-www-form-urlencoded",
+            "referer": "https://douban.fm/mine/hearts",
+            "accept-encoding": "json",
+            "accept-language": "en-US,en;q=0.8,zh-CN;q=0.6",
             'cookie': "flag=\"ok\"; bid=t4xPDCj1I1s; ac=\"1499573995\"; _ga=GA1.2.1260704849.1499574005; _gid=GA1.2.240229902.1499574005; dbcl2=\"73439176:FKMgD3xXUkI\"; ck=R3rG",
-            'cache-control': "no-cache",
-            'postman-token': "9190d8df-60a6-0ee4-8d21-63409be10985"
+            "cache-control": "no-cache",
+            "postman-token": "81083c84-e179-3825-fa69-3ae8e025ea9e"
         }
     },
 
@@ -63,8 +63,11 @@ DoubanFMSongList.prototype = {
         if (this.q.length === 0)
             return;
 
-        const proc = this.q.shift();
-        new Promise(proc).then(this._dequeue.bind(this)).catch(this.exception_handler.bind(this))
+        const proc = this.q[0];
+        new Promise(proc).then(() => {
+            this.q.shift();
+            this._dequeue();
+        }).catch(this.exception_handler.bind(this))
     },
 
     exception_handler(err)
@@ -72,20 +75,13 @@ DoubanFMSongList.prototype = {
         console.error("Error:", err);
     },
 
-    getSongIDs()
-    {
-        const action = (body) => {
-            console.log(JSON.parse(body));
-        }
-
-        this.handle_response(this.getsid_options, null, action);
-    },
-
     handle_response(options, body, action)
     {
         const proc = (rsv, rej) => {
-            const options = lo.assign(this.getsid_options, {'cookie': this.cookies});
-            let req = http.request(options,
+            const final_options = lo.cloneDeep(options);
+            final_options.headers.cookie = this.cookies;
+            //const final_options = lo.assign(options, {cookie: this.cookies});
+            let req = http.request(final_options,
                 (res) => {
                     let chunks = [];
                     res.on("data", (ck) => {
@@ -97,35 +93,67 @@ DoubanFMSongList.prototype = {
                         action(body.toString());
                         rsv();
                     });
-                });
-            if (body && options.method.toLowerCase() === 'post')
+                }); if (body && final_options.method.toLowerCase() === 'post') {
+                if (typeof body === 'function')
+                    body = body();
                 req.write(body);
+            }
             req.end();
-            console.log("request sent", options);
+
         }
         this.enqueue(proc);
     },
+
+    getSongIDs()
+    {
+        const action = (body) => {
+            const meta = JSON.parse(body);
+            const songs = meta.songs;
+            this.song_ids = [];
+            for (let sidx in songs) {
+                const sid = songs[sidx].sid;
+                this.song_ids.push(sid);
+            }
+
+            //console.log("song+ids", this.song_ids);
+
+        }
+
+        this.handle_response(this.getsid_options, null, action);
+    },
+
+    getAllSongInfo(ck)
+    {
+        const action = (body) => {
+            const songs = JSON.parse(body);
+            this.songs_meta = {};
+            for (let sidx in songs) {
+                const title = songs[sidx].title;
+                const sid = songs[sidx].sid;
+                const url = songs[sidx].url;
+                this.songs_meta[sid] = {title : title, url: url };
+            }
+            //console.log("Songs:", songs, this.songs_meta);
+        }
+
+        const get_post_body = () => {
+            const post_body = {
+                ck: ck,
+                kbps: '192',
+                sids: this.song_ids.join('|')
+            };
+
+            //console.log("post_body", qs.stringify(post_body));
+            return qs.stringify(post_body);
+            //return 'sids=1616332%7C1809244%7C689489%7C1642234%7C1905238%7C2237789%7C1478121%7C427345%7C696756%7C1905235%7C1003081%7C42346%7C73608%7C1119376%7C198504%7C1537632%7C1881607%7C394304%7C1645932%7C365077&kbps=128&ck=R3rG'
+            //return "sids=189589%7C584081%7C1828436%7C577640%7C1454157%7C287521%7C1646023%7C1616334%7C362439%7C446514%7C1813598%7C169922%7C1991181%7C1473055%7C1670235%7C1492185%7C1825449&kbps=128&ck=R3rG"
+            //return "sids=1616332%7C1809244%7C689489%7C1642234%7C1905238%7C2237789%7C1478121%7C427345%7C696756%7C1905235%7C1003081%7C42346%7C73608%7C1119376%7C198504%7C1537632%7C1881607%7C394304%7C1645932%7C365077&kbps=128&ck=R3rG"
+        }
+
+        this.handle_response(this.getsonglist_options, get_post_body, action);
+    },
 };
 
-
-
-
-
-
-const req_data = qs.stringify({
-    ck:'R3rG',
-    kbps:'128',
-    sids:'1131777|2237917|665045|2384797|698084|1548644|2456263|20786|1813887|1479738|1478128|665339|154207|258483|64543|1824553|2153820|2153829|2153827|1819993|1064923|1813736|1824806|1385507|577644|1422853|1815969|1546826|64547|1809241|1616332|1809244|689489|1642234|1905238|2237789|1478121|427345|696756|1905235|1003081|42346|73608|1119376|198504|1537632|1881607|394304|1645932|365077|559658|20790|1700409|353523|1738616|424897|1738620|1640122|21954|723297|51943|262413|353526|1466697|1389067|355618|350385|1645935|1661167|539552|189589|584081|1828436|577640|1640163|1454157|287521|1646023|1616334|362439|446514|1813598|169922|1991181|1473055|1670235|1492185|1825449|1444682|745259|1496390|355622|660836|37729|1813730|3823|1813727|1928461|353525|1813065|665245|1875528|1813366|697123|970583|32698|20791|1438682|551188|1554767|1478122|1640142|1389077|665052|1825757|1505935|1541586|1825762|45936|561945|1478123|1470218|1822162|355616|1478118|1888262|385468|1838344|1930385|497875|1825778|1640131|146531|1389069|1449816|1449817|393370|392750|129977|10746|1391297|182277|13393|160918|40966|1493736|661200|1493728|1530810|2048910|508620|252993|1436652|435488|1402832|148742|696940|1442610|1398692|1812833|423658|43861|774458|1698792|1904765|1822408|626982|1834235|35642|340356|1818284|169766|1561557|1549399|545968|321737|333835|1534519|428298|1389749|612300|568389|1129236|1560469|1389765|758752|178791|2208897|471487|471493|471505|471520|34857|1654864|1820163|34722|34729|1493725|336660|336657|336664|642358|642369|336663|1815178|1851904|447541|178790|356333|707628|40751|148752|148744|1635891|1382120|1426338|68869|1563404|775024|695709|1479147|192686|1850459|447555|178712|1942336|402742|259949|34724|34721|34727|1382586|2122249|1694684|331772|606292|606285|966132|966130|966146|594767|17144|345486|1396034|1063888|764855|360259|336512|1464529|147918|329741|40808|33924|1438369|178636|1821669|1828684|1635354|1882478|547996|1848760|2097056|1438358|1992349|337041|1502620|725787|1394186|549509|449982|1881107|703957|1753407|467661|990342|178786|1493741|2051327|1635886|85252|1422734|757274|1427056|1386830|525938|1412733|759186|1477579|1029141|96699|1471440|15513|1635633|1635570|772301|1885195|1548364|760050|1844998|1815234|595862|7032|1838458|331776|311842|423272|1502632|643512|30032|694041|150466|1493731|577252|360176|726593|13928|1385355|1879753|702069|1523564|2138978|11267|707633|1389601|1503180|10965|1465476|2051843|704487|704480|487635|546733|747770|1480998|680300|1382083|702076|262385|1474204|705218|1932148|1992370|1838377|1104339|1615|1450129|1434776|2001901|966135|569637|966128|606249|758570|450007|1558399|1382081|69283|34735|427547|1838464|696932|972416|409355|1000411|776022|425709|1488784|4122|757428|187737|1504320|161983|347949|347952|760484|444359|727836|130903|582807|179186|707632|1382373|393286|8452|703744|122627|336527|1509247|694390|1436072|1895856|1380923|1396075|1815293|491757|1382521|582219|1383190|757270|11931|7040|34407|1646167|1536256|1838467|973177|1434180|1380919|1563409|548927|213524|191740|582738|1562253|1898965|1437763|47854|1492771|586375|364893|768804|706478|1502336|1887350|1068295|36246|581042|1508098|89883|47872|768390|680286|548899|393278|1382648|1508831|131328|586367|520288|547891|336661|967054|356398|1464530|409340|736437|736433|736432|736438|1497212|366813|406841|72306|516359|336695|1490746|768396|498694|988598|642472|723597|707643|238642|586354|1896980|353331|1387496|67543|680320|727852|1493730|168428|345667|361898|1646187|1918737|546735|552237|421054|643476|1385234|220369|723616|471497|676677|1394661|1069795|323945|626979|679290|191885|1440143|1392060|1062772|1392059|157218|1382314|1962308|366816|642803|178788|1024291|1390686|559814|262387|688649|1038547|265689|723619|723593|477564|280187|1675444|627008|524146|704484|1382878|1390682|186609|1455446'});
-
-
-const processSongList = function processSongList(sl)
-{
-    //const util = require('util');
-    //console.log(util.inspect(sl, {depth: null}));
-    for (let song of sl) {
-        console.log(song.title, song.artist, song.url);
-    }
-}
-
-var sl = new DoubanFMSongList("flag=\"ok\"; bid=t4xPDCj1I1s; ac=\"1499573995\"; _ga=GA1.2.1260704849.1499574005; _gid=GA1.2.240229902.1499574005; dbcl2=\"73439176:FKMgD3xXUkI\"; ck=R3rG");
+var sl = new DoubanFMSongList('flag="ok"; bid=t4xPDCj1I1s; ac="1499573995"; _ga=GA1.2.1260704849.1499574005; _gid=GA1.2.240229902.1499574005; dbcl2="73439176:FKMgD3xXUkI"; ck=R3rG; flag="ok"; bid=t4xPDCj1I1s; ac="1499573995"; _ga=GA1.2.1260704849.1499574005; _gid=GA1.2.240229902.1499574005; _gat=1; dbcl2="73439176:zEEoH5TQtaY"; ck=Z6e0');
 sl.getSongIDs();
+sl.getAllSongInfo('Z6e0');
