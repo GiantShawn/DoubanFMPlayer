@@ -133,7 +133,7 @@ DoubanFMSongList.prototype = {
                 const url = songs[sidx].url;
                 this.songs_meta[sid] = {title : title, url: url };
             }
-            //console.log("Songs:", songs, this.songs_meta);
+           console.log("Songs:", songs, this.songs_meta);
         }
 
         const get_post_body = () => {
@@ -143,11 +143,7 @@ DoubanFMSongList.prototype = {
                 sids: this.song_ids.join('|')
             };
 
-            //console.log("post_body", qs.stringify(post_body));
             return qs.stringify(post_body);
-            //return 'sids=1616332%7C1809244%7C689489%7C1642234%7C1905238%7C2237789%7C1478121%7C427345%7C696756%7C1905235%7C1003081%7C42346%7C73608%7C1119376%7C198504%7C1537632%7C1881607%7C394304%7C1645932%7C365077&kbps=128&ck=R3rG'
-            //return "sids=189589%7C584081%7C1828436%7C577640%7C1454157%7C287521%7C1646023%7C1616334%7C362439%7C446514%7C1813598%7C169922%7C1991181%7C1473055%7C1670235%7C1492185%7C1825449&kbps=128&ck=R3rG"
-            //return "sids=1616332%7C1809244%7C689489%7C1642234%7C1905238%7C2237789%7C1478121%7C427345%7C696756%7C1905235%7C1003081%7C42346%7C73608%7C1119376%7C198504%7C1537632%7C1881607%7C394304%7C1645932%7C365077&kbps=128&ck=R3rG"
         }
 
         this.handle_response(this.getsonglist_options, get_post_body, action);
