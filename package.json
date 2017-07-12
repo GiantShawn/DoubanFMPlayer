@@ -4,6 +4,7 @@
   "description": "",
   "main": "getredheart.js",
   "scripts": {
+    "dev": "babel src --out-dir dist --copy-files",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -11,5 +12,9 @@
   "dependencies": {
     "lodash": "^4.17.4",
     "player": "^0.6.1"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.24.1",
+    "babel-preset-env": "^1.6.0"
   }
 }

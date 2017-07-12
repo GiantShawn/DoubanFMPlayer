@@ -1,0 +1,7 @@
+dist/
+node_modules
+*.txt
+*.json
+test.*
+*.mp3
+*.py
