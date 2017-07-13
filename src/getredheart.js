@@ -11,8 +11,9 @@ function DoubanFMSongList(cookies)
     this.fm = new SDKG().defineAPI('login', 'https', this.login_options)
                         .defineAPI('check_login', 'https', this.login_check_options, 'login')
                         .defineAPI('redheart', 'http', this.doubanfm_options, 'login')
-                        .defineAPI('songlist', 'http', this.getsid_options, 'redheart')
-                        .defineAPI('songinfo', 'http', this.getsonglist_options, 'redheart');
+                        .defineAPI('songlist', 'http', this.songlist_options, 'redheart')
+                        .defineAPI('songinfo', 'http', this.songinfo_options, 'redheart')
+                        .defineAPI('logout', 'http', this.logout_options, 'login');
 }
 
 DoubanFMSongList.prototype = {
@@ -36,11 +37,11 @@ DoubanFMSongList.prototype = {
     },
 
     login_check_options: {
-        "method": "GET",
         "hostname": "douban.fm",
+        "method": "GET",
         'path': "/j/check_loggedin?san=1",
         "headers": {
-            "cookie": "{0}",
+            "cookie": "dbcl2={0}",
         }
     },
 
@@ -48,21 +49,29 @@ DoubanFMSongList.prototype = {
         "hostname": "douban.fm",
         "path": "/j/v2/redheart/{0}",
         "headers": {
-            'cookie': "{0}",
+            'cookie': "dbcl2={0}",
         },
     },
 
-    getsid_options: {
+    songlist_options: {
         "method": "GET",
         "{path}": "basic",
     },
 
-    getsonglist_options: {
+    songinfo_options: {
         "method": "POST",
         "{path}": "songs",
     },
 
-
+    logout_options: {
+        "hostname": "douban.fm",
+        "method": "GET",
+        "path": "/partner/logout?source=radio&ck={0}&no_login=y",
+        "headers": {
+            'upgrade-insecure-requests': "1",
+            'cookie': "dbcl2={0}"
+        }
+    },
 
     enqueue(proc)
     {
@@ -148,15 +157,25 @@ DoubanFMSongList.prototype = {
 
     login(userinfo)
     {
-        this.handle_response('login', null, qs.stringify(userinfo), (body, req, res) => {
+        this.handle_response('login', null, qs.stringify(userinfo),
+            (body, req, res) => {
             this.dbclid = this.__parseCookie(res.headers['set-cookie'], 'dbcl2')
             console.log("Login succeed", this.dbclid);
         });
 
-        this.handle_response('check_login', () => { return {headers: {'{cookie}': 'dbcl2='+this.dbclid}}; }, null, (body, req, res) => {
-            this.ckcode = this.__parseCookie(res.headers['set-cookie'], 'ck');
-            console.log("CK-Code:", this.ckcode, this.dbclid, res.headers);
-        });
+        this.handle_response('check_login', () => { return {headers: {'{cookie}': this.dbclid}}; }, null,
+            (body, req, res) => {
+                this.ckcode = this.__parseCookie(res.headers['set-cookie'], 'ck');
+                console.log("CK-Code:", this.ckcode, this.dbclid, res.headers);
+            });
+    },
+
+    logout()
+    {
+        this.handle_response('logout', () => { return {'{path}': this.ckcode, headers: {'{cookie}': this.dbclid}};}, null,
+            (body, req, res) => {
+                console.log("Logout", res.statusCode, res.headers);
+            });
     },
             
     getSongIDs()
@@ -170,11 +189,11 @@ DoubanFMSongList.prototype = {
                 this.song_ids.push(sid);
             }
 
-            console.log("song+ids", this.song_ids);
+            //console.log("song+ids", this.song_ids);
 
         }
 
-        this.handle_response('songlist', () => {return {headers: {'{cookie}': 'dbcl2='+this.dbclid}}}, null, action);
+        this.handle_response('songlist', () => {return {headers: {'{cookie}': this.dbclid}}}, null, action);
     },
 
     getAllSongInfo()
@@ -203,7 +222,7 @@ DoubanFMSongList.prototype = {
             return qss;
         }
 
-        this.handle_response('songinfo', () => {return {headers: {'{cookie}': 'dbcl2='+this.dbclid}}}, get_post_body, action);
+        this.handle_response('songinfo', () => {return {headers: {'{cookie}': this.dbclid}}}, get_post_body, action);
     },
 };
 
@@ -217,3 +236,4 @@ var sl = new DoubanFMSongList();
 sl.login({name:argv.u, password:argv.p});
 sl.getSongIDs();
 sl.getAllSongInfo();
+sl.logout();
