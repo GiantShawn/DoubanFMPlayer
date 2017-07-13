@@ -4,17 +4,19 @@
   "description": "",
   "main": "getredheart.js",
   "scripts": {
-    "dev": "babel src --out-dir dist --copy-files",
+    "dev": "babel src --out-dir dist --copy-files --source-maps inline --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "lodash": "^4.17.4",
+    "minimist": "^1.2.0",
     "player": "^0.6.1"
   },
   "devDependencies": {
     "babel-cli": "^6.24.1",
+    "babel-plugin-stack-trace-sourcemap": "^1.0.2",
     "babel-preset-env": "^1.6.0"
   }
 }
