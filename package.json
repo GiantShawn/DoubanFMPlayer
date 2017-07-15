@@ -10,8 +10,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "blessed": "^0.1.81",
+    "colors": "^1.1.2",
     "lodash": "^4.17.4",
     "minimist": "^1.2.0",
+    "moment": "^2.18.1",
     "player": "^0.6.1"
   },
   "devDependencies": {
