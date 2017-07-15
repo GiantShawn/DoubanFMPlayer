@@ -1,5 +1,8 @@
 {
-        "presets": ["env"],
+        "presets": [
+                ["env",
+                { target: 'node' }
+                ]],
         'plugins': [
                 ['babel-plugin-stack-trace-sourcemap', {
                         'importOverride': ['source-map-support', 'install', '_sourceMapSupport'],
