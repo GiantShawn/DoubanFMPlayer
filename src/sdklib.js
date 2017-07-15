@@ -1,17 +1,17 @@
 'use strict';
 
-const qs = require("querystring");
-const http = require("https");
-const https = require("https");
-const lo = require('lodash');
-const assert = require('assert');
+import * as qs from "querystring";
+import * as http from "http";
+import * as https from "https";
+import * as lo from "lodash";
+import * as assert from 'assert';
 
 /*
- * SDK represent a group of web api
+ * SDKPackage represent a group of web api
  * and their bundled parameters
  */
 
-export class SDK
+export class SDKPackage
 {
     constructor()
     {
@@ -127,7 +127,7 @@ export class SDK
                 });
             });
             if (body) {
-                assert(['string', 'function'].indexOf(typeof body) >= 0);
+                assert.default(['string', 'function'].indexOf(typeof body) >= 0);
                 if (typeof body === 'function')
                     body = body();
                 req.write(body);
