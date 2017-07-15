@@ -1,18 +1,18 @@
 import * as qs from 'querystring';
 import * as http from 'http';
 import * as lo from 'lodash';
-import {SDK as SDKG} from './sdklib';
-
+import { SDKPackage } from './sdklib';
+import * as utils from './utils';
 
 
 function DoubanFMSongList(cookies)
 {
     this.q = [];
-    this.fm = new SDKG().defineAPI('login', 'https', this.login_options)
+    this.fm = new SDKPackage().defineAPI('login', 'https', this.login_options)
                         .defineAPI('check_login', 'https', this.login_check_options, 'login')
-                        .defineAPI('redheart', 'http', this.doubanfm_options, 'login')
-                        .defineAPI('songlist', 'http', this.songlist_options, 'redheart')
-                        .defineAPI('songinfo', 'http', this.songinfo_options, 'redheart')
+                        .defineAPI('redheart', 'https', this.doubanfm_options, 'login')
+                        .defineAPI('songlist', 'https', this.songlist_options, 'redheart')
+                        .defineAPI('songinfo', 'https', this.songinfo_options, 'redheart')
                         .defineAPI('logout', 'http', this.logout_options, 'login');
 }
 
@@ -108,7 +108,7 @@ DoubanFMSongList.prototype = {
                     var [req, res, body, usrdata] = res;
                     action(body.toString(), req, res);
                     rsv();
-                }, rej);
+                }).catch(rej);
             /*
             const final_options = lo.cloneDeep(options);
             final_options.headers.cookie = this.dbclids;
@@ -181,6 +181,7 @@ DoubanFMSongList.prototype = {
     getSongIDs()
     {
         const action = (body) => {
+            //utils.loginfo(body);
             const meta = JSON.parse(body);
             const songs = meta.songs;
             this.song_ids = [];
@@ -227,7 +228,6 @@ DoubanFMSongList.prototype = {
 };
 
 const argv = require('minimist')(process.argv.slice(2))
-console.log('argv', argv, process.argv);
 if (!argv.u || !argv.p) {
     console.error("-u <username> -p <password>");
     process.exit(1);
