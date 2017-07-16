@@ -1,17 +1,20 @@
 'use strict';
 
 import * as fs from 'fs';
+import * as util from 'util';
 import * as lo from 'lodash';
 import Monitor from './monitor';
 import * as utils from './utils';
+
+import * as blessed from 'blessed';
 
 class Application
 {
     constructor()
     {
         const argv = require('minimist')(process.argv.slice(2))
-        if (!argv.u || !argv.p) {
-            console.error("-username <username> -passwd <password>");
+        if (!argv.username || !argv.passwd) {
+            console.error("--username=<username> --passwd=<password>");
             process.exit(1);
         }
 
@@ -20,25 +23,36 @@ class Application
             password: argv.passwd,
             netadmin: utils.parseAddrSpec(argv.netadmin, '127.0.0.1', '8764'),
             frontend: utils.parseAddrSpec(argv.frontend, '0.0.0.0', '9865'),
-            
-            logtarget: argv.logfile && fs.createWriteStream(argv.logfile) || process.stdout,
+            logtarget: argv.logfile && argv.logfile || 'stdout',
+            is_su: false,
         };
 
+        const logtarget = this.config.logtarget == 'stdout' && process.stdout || fs.createWriteStream(this.config.logtarget);
         this.monitor = new Monitor(this,
-            this.config.logtarget,
+            logtarget,
             this.config.netadmin);
 
         this._setupLogFuncs();
     }
 
-    handleMonitorCommand(cmd, retresult)
+    start()
+    {
+        this.monitor.start();
+    }
+
+    handleMonitorCommand(cmd, netadmin)
     {
         const func_name = '_netadmin_' + cmd[0];
         if (this[func_name] && typeof this[func_name] === 'function') {
-            this[func_name](cmd.slice(1), retresult);
+            try {
+                this[func_name](cmd.slice(1), netadmin);
+            } catch (e) {
+                this.logerror("Internal Error in NetAdminCommand!: %s", e.toString());
+                netadmin(`Internal Error in NetAdminCommand[${cmd.toString()}]`);
+            }
         } else {
             this.logerror("No NetAdmin command[%s] found. Full:%s", cmd[0].toString(), cmd.join(' '));
-            retresult(`Command[${cmd[0]}] not found`, 1);
+            netadmin(`Command[${cmd[0]}] not found`, 1);
         }
     }
 
@@ -50,86 +64,93 @@ class Application
         }
     }
 
-    _netadmin_echo(args, retresult)
+    _netadmin_echo(args, netadmin)
     {
-        retresult(args.join(' '), 0, false);
-        retresult(args.join(' '), 1);
+        if (args.length === 0) {
+            console.log("CONTINUE ECHO");
+            netadmin('**CONTINUE**endecho');
+        } else
+            netadmin(args.join(' '));
     }
+
+    _netadmin_endecho(args, netadmin)
+    {
+        this._netadmin_echo(args, netadmin);
+    }
+
+    _netadmin_config(args, netadmin)
+    {
+        const c = lo.defaults({
+            password: 'x',
+        }, this.config);
+        netadmin(util.inspect(c));
+    }
+    
+    _netadmin_reload(args, netadmin)
+    {
+    }
+
+    _netadmin_eval(args, netadmin)
+    {
+        if (!this.config.is_su) {
+            netadmin("Only super user can do eval", 1);
+            return;
+        }
+
+        if (args.length) {
+            const expr = args.join(' ');
+            this._doNetAdminEval(expr, netadmin);
+        } else {
+            //netadmin("NOT IMPLE");
+            console.log("CONTINUE EVAL");
+            netadmin('**CONTINUE**endeval'); // continue
+        }
+
+    }
+
+    _netadmin_endeval(args, netadmin)
+    {
+        this._netadmin_eval(args, netadmin);
+    }
+
+    _doNetAdminEval(expr, netadmin)
+    {
+        process.nextTick(() => {
+            global.echo = (msg) => netadmin(msg.toString()+'\n', 0, false);
+            const end = ((rr) => () => rr('<--- Exit normally --->'))(netadmin);
+            const endError = ((rr) => (res) => rr(res.toString(), 1))(netadmin);
+
+            const vm = require('vm');
+            try {
+                //end(eval(expr)); // this may produce duplicate prompt, but never mind
+                vm.runInThisContext(expr);
+                end();
+            } catch(e) {
+                endError("Exception Thrown: " + e);
+            } finally {
+                global.echo = undefined;
+            }
+        });
+    }
+
+    _netadmin_su(args, netadmin)
+    {
+        if (this.config.is_su) {
+            netadmin("You are already a super user", 1);
+            return;
+        }
+
+        if (args.length !== 1 || args[0] !== '888') {
+            netadmin("Authentication Fail", 1);
+            return;
+        }
+
+        this.config.is_su = true;
+        netadmin("Authentication Succeed!");
+    }
+
 };
 
-const app = new Application();
+const app = new Application()
+app.start();
 
-/*
-var blessed = require('blessed');
-
-// Create a screen object.
-var screen = blessed.screen({
-  smartCSR: true
-});
-
-screen.title = 'my window title';
-
-// Create a box perfectly centered horizontally and vertically.
-var box = blessed.box({
-  top: 'center',
-  left: 'center',
-  width: '50%',
-  height: '50%',
-  content: 'Hello {bold}world{/bold}!',
-  tags: true,
-  border: {
-    type: 'line'
-  },
-  style: {
-    fg: 'white',
-    bg: 'magenta',
-    border: {
-      fg: '#f0f0f0'
-    },
-    hover: {
-      bg: 'green'
-    }
-  }
-});
-
-// Append our box to the screen.
-screen.append(box);
-
-// Add a png icon to the box
-var icon = blessed.image({
-  parent: box,
-  top: 0,
-  left: 0,
-  type: 'overlay',
-  width: 'shrink',
-  height: 'shrink',
-  file: __dirname + '/my-program-icon.png',
-  search: false
-});
-
-// If our box is clicked, change the content.
-box.on('click', function(data) {
-  box.setContent('{center}Some different {red-fg}content{/red-fg}.{/center}');
-  screen.render();
-});
-
-// If box is focused, handle `enter`/`return` and give us some more content.
-box.key('enter', function(ch, key) {
-  box.setContent('{right}Even different {black-fg}content{/black-fg}.{/right}\n');
-  box.setLine(1, 'bar');
-  box.insertLine(1, 'foo');
-  screen.render();
-});
-
-// Quit on Escape, q, or Control-C.
-screen.key(['escape', 'q', 'C-c'], function(ch, key) {
-  return process.exit(0);
-});
-
-// Focus our element.
-box.focus();
-
-// Render the screen.
-screen.render();
-
-*/
