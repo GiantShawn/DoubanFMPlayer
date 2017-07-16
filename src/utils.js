@@ -37,3 +37,27 @@ export function parseAddrSpec(spec, daddr, dport)
     return [addr, parseInt(port)];
 }
 
+
+export function mixins(dst, ...srcs)
+{
+    const mix_sources = [...srcs];
+    for (let s of mix_sources) {
+        for (let prop in s) {
+            dst[prop] = s[prop];
+        }
+    }
+}
+
+export function mixinClasses(dst, ...srcs)
+{
+    const mix_sources = [...srcs];
+    const dstproto = dst.prototype;
+    for (let s of mix_sources) {
+        const sproto = s.prototype;
+        for (let prop of Object.getOwnPropertyNames(sproto)) {
+            if (prop === 'constructor')
+                continue;
+            dstproto[prop] = sproto[prop];
+        }
+    }
+}
