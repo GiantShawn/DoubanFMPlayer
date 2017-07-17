@@ -8,8 +8,6 @@ import {NACBasics, NACEval} from './netadmin';
 import * as utils from './utils';
 import {mixinClasses} from './utils';
 
-import * as blessed from 'blessed';
-
 class Application
 {
     constructor()
