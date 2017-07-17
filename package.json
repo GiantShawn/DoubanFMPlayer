@@ -4,7 +4,7 @@
   "description": "",
   "main": "getredheart.js",
   "scripts": {
-    "dev": "bash -c 'for s in src cli; do babel $s --out-dir dist-$s --copy-files --source-maps inline --watch & done; wait;'",
+    "dev": "bash -c 'for s in srv cli; do babel $s --out-dir dist-$s --copy-files --source-maps inline --watch & done; wait;'",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

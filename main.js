@@ -1,4 +1,4 @@
 #!/usr/bin/env node
 
 //require("./dist/loginsection");
-require('./dist-src/app');
+require('./dist-srv/app');
