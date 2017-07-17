@@ -3,7 +3,7 @@ import getmoment, * as moment from 'moment';
 import * as net from 'net';
 import * as http from 'http';
 import * as lo from 'lodash';
-import * as utils from './utils';
+import * as utils from '../lib/utils';
 
 export default class Monitor
 {

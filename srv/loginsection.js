@@ -2,7 +2,7 @@ import * as qs from 'querystring';
 import * as http from 'http';
 import * as lo from 'lodash';
 import { SDKPackage } from './sdklib';
-import * as utils from './utils';
+import * as utils from '../lib/utils';
 
 
 function DoubanFMSongList(cookies)

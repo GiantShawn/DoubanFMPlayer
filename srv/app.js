@@ -5,8 +5,8 @@ import * as util from 'util';
 import * as lo from 'lodash';
 import Monitor from './monitor';
 import {NACBasics, NACEval} from './netadmin';
-import * as utils from './utils';
-import {mixinClasses} from './utils';
+import * as utils from '../lib/utils';
+import {mixinClasses} from '../lib/utils';
 
 class Application
 {
