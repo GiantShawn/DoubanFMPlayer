@@ -36,6 +36,7 @@ export default class Monitor
             batchinput: { writable: true, value: false },
             batchinputends: {writable: true, value: ''},
             batchinputidx: {writable: true, value: 0},
+            cli_type: {writable: true, value: 'nc'},
         });
 
         //c.setEncoding('utf-8');
@@ -44,10 +45,14 @@ export default class Monitor
         let chunks = [];
         function prompt(ind = 0, no_enter = false)
         {
-            if (no_enter) {
-                c.write(utils.color_fmt.tips('>'.repeat(ind+1) + ' '));
+            if (conn.cli_type === 'cli') {
+                c.write('>');
             } else {
-                c.write(utils.color_fmt.tips('\n>'.repeat(ind+1) + ' '));
+                if (no_enter) {
+                    c.write(utils.color_fmt.tips('>'.repeat(ind+1) + ' '));
+                } else {
+                    c.write(utils.color_fmt.tips('\n>'.repeat(ind+1) + ' '));
+                }
             }
         }
         const neprompt = (ind = 0) => prompt(ind, true);
@@ -87,7 +92,13 @@ export default class Monitor
                     // enter
                     neprompt();
                 } else {
-                    this.app.handleMonitorCommand(cmd, lo.partial(this.netadminHandleCB.bind(conn), prompt));
+                    if (cmd[0] === '**CLIENTTYPE**') {
+                        if (cmd[1] === 'CLI') {
+                            conn.cli_type = 'cli';
+                        }
+                    } else {
+                        this.app.handleMonitorCommand(cmd, lo.partial(this.netadminHandleCB.bind(conn), prompt));
+                    }
                 }
             }
         });

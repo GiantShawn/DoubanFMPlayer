@@ -2,8 +2,10 @@
   "name": "doubanredheart",
   "version": "1.0.0",
   "description": "",
-  "main": "getredheart.js",
+  "main": "dist/srv/srv.js",
   "scripts": {
+    "start-srv": "node srv.js",
+    "start-cli": "node cli.js",
     "dev": "bash -c 'for s in srv cli lib; do babel $s --out-dir dist/$s --copy-files --source-maps inline --watch & done; wait;'",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
