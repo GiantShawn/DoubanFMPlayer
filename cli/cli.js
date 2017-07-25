@@ -51,7 +51,8 @@ class ClientApp
             const rl = readline.createInterface({
                 input: process.stdin,
                 output: process.stdout,
-                prompt: '> '
+                prompt: '> ',
+                terminal: true,
             });
 
             //rl.prompt();
@@ -74,22 +75,24 @@ class ClientApp
             skt.on('data', function cdata (data) {
                 if (data.indexOf('>')) {
                     const dend = data.indexOf('>');
-                    console.log(data.slice(0, dend));
+                    process.stdout.write(data.slice(0, dend));
                     rl.prompt();
-                    console.log(data.slice(dend+1));
+                    process.stdout.write(data.slice(dend+1));
                 } else {
-                    console.log(data);
+                    process.stdout.write(data);
                 }
             });
 
         });
+
         skt.setEncoding('utf-8');
+        //skt.write('**CLIENTTYPE**\n');
     }
 
     _cmd_echo(rl, args)
     {
         //this.putinfo(args.join(' '));
-        process.stdout.write("DOSIFUD");
+        process.stdout.write(args.join(' ') + '\n');
         //rl.write(args.join(' '));
     }
 

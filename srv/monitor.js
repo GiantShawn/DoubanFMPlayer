@@ -39,25 +39,21 @@ export default class Monitor
             cli_type: {writable: true, value: 'nc'},
         });
 
-        //c.setEncoding('utf-8');
-        c.setEncoding('ascii');
+        c.setEncoding('utf-8');
+        //c.setEncoding('ascii');
 
         let chunks = [];
-        function prompt(ind = 0, no_enter = false)
+        function prompt(ind = 0)
         {
             if (conn.cli_type === 'cli') {
                 c.write('>');
             } else {
-                if (no_enter) {
-                    c.write(utils.color_fmt.tips('>'.repeat(ind+1) + ' '));
-                } else {
-                    c.write(utils.color_fmt.tips('\n>'.repeat(ind+1) + ' '));
-                }
+                c.write(utils.color_fmt.tips('>'.repeat(ind+1) + ' '));
             }
         }
-        const neprompt = (ind = 0) => prompt(ind, true);
 
-        neprompt();
+        prompt();
+
         c.on('data', (data) => {
             if (conn.batchinput) {
                 for (let i in data) {
@@ -90,7 +86,7 @@ export default class Monitor
                 const cmd = cmdchunks.join('').trim().split(/[ \t]+/);
                 if (!cmd[0]) {
                     // enter
-                    neprompt();
+                    prompt();
                 } else {
                     if (cmd[0] === '**CLIENTTYPE**') {
                         if (cmd[1] === 'CLI') {
@@ -139,8 +135,11 @@ export default class Monitor
         else
             conn.write(utils.color_fmt.error(msg));
 
-        if (is_end)
+        if (is_end) {
+            if (msg[msg.length-1] != '\n')
+                conn.write('\n');
             prompt();
+        }
     }
 
     loginfo(tag, fmt, ...args)
