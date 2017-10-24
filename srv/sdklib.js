@@ -107,7 +107,7 @@ export class SDKPackage
         }
 
         return new Promise((rsv, rej) => {
-            console.log(`OPTIONS ${name}`, options);
+            //console.log(`OPTIONS ${name}`, options);
             let req = api.proto.request(options, (res) => {
                 let chunks = [];
                 res.on('data', (ck) => chunks.push(ck) );

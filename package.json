@@ -12,12 +12,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "babel-polyfill": "^6.26.0",
     "blessed": "^0.1.81",
+    "co": "^4.6.0",
     "colors": "^1.1.2",
     "lodash": "^4.17.4",
     "minimist": "^1.2.0",
     "moment": "^2.18.1",
-    "player": "^0.6.1"
+    "mz": "^2.7.0",
+    "player": "^0.6.1",
+    "through2": "^2.0.3"
   },
   "devDependencies": {
     "babel-cli": "^6.24.1",

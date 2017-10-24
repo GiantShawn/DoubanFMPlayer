@@ -1,8 +1,13 @@
+import 'babel-polyfill';
 import * as qs from 'querystring';
 import * as http from 'http';
 import * as lo from 'lodash';
 import { SDKPackage } from './sdklib';
 import * as utils from '../lib/utils';
+import * as fsco from 'mz/fs';
+import co from 'co';
+import through2 from 'through2';
+import * as util from 'util';
 
 
 function DoubanFMSongList(cookies)
@@ -159,14 +164,19 @@ DoubanFMSongList.prototype = {
     {
         this.handle_response('login', null, qs.stringify(userinfo),
             (body, req, res) => {
-            this.dbclid = this.__parseCookie(res.headers['set-cookie'], 'dbcl2')
-            console.log("Login succeed", this.dbclid);
+                if (res.statusCode === 200) {
+                    this.dbclid = this.__parseCookie(res.headers['set-cookie'], 'dbcl2')
+                    //utils.logtips("Login succeed", this.dbclid);
+                } else {
+                    utils.logerror("Login fail", res.statusCode);
+                    res.pipe(process.stdout);
+                }
         });
 
         this.handle_response('check_login', () => { return {headers: {'{cookie}': this.dbclid}}; }, null,
             (body, req, res) => {
                 this.ckcode = this.__parseCookie(res.headers['set-cookie'], 'ck');
-                console.log("CK-Code:", this.ckcode, this.dbclid, res.headers);
+                //console.log("CK-Code:", this.ckcode, this.dbclid, res.headers);
             });
     },
 
@@ -174,7 +184,7 @@ DoubanFMSongList.prototype = {
     {
         this.handle_response('logout', () => { return {'{path}': this.ckcode, headers: {'{cookie}': this.dbclid}};}, null,
             (body, req, res) => {
-                console.log("Logout", res.statusCode, res.headers);
+                //console.log("Logout", res.statusCode, res.headers);
             });
     },
             
@@ -199,18 +209,6 @@ DoubanFMSongList.prototype = {
 
     getAllSongInfo()
     {
-        const action = (body) => {
-            const songs = JSON.parse(body);
-            this.songs_meta = {};
-            for (let sidx in songs) {
-                const title = songs[sidx].title;
-                const sid = songs[sidx].sid;
-                const url = songs[sidx].url;
-                this.songs_meta[sid] = {title : title, url: url };
-            }
-           console.log("Songs:", songs, this.songs_meta);
-        }
-
         const get_post_body = () => {
             const post_body = {
                 ck: this.ckcode,
@@ -219,12 +217,89 @@ DoubanFMSongList.prototype = {
             };
 
             let qss = qs.stringify(post_body);
-            console.log("QSS", qss);
+            //console.log("QSS", qss);
             return qss;
         }
 
-        this.handle_response('songinfo', () => {return {headers: {'{cookie}': this.dbclid}}}, get_post_body, action);
+        return new Promise((rsv, rej) => {
+            this.handle_response('songinfo', () => {return {headers: {'{cookie}': this.dbclid}}}, get_post_body,
+                (body) => {
+                    const songs = JSON.parse(body);
+                    this.songs_meta = {}
+                    this.songs_meta[Symbol.iterator] = function* () {
+                        for (let si in this) {
+                            yield this[si];
+                        }
+                    }.bind(this.songs_meta)
+                    for (let sidx in songs) {
+                        const title = songs[sidx].title;
+                        const sid = songs[sidx].sid;
+                        const url = songs[sidx].url;
+                        const sha256 = songs[sidx].sha256;
+                        this.songs_meta[sid] = {title : title, url: url, sha256: sha256};
+                    }
+                   //console.log("Songs:", songs);
+                   for (let s of this.songs_meta) {
+                       console.log('<%s>[%s]{%s}', s.title, s.url, s.sha256);
+                   }
+
+                    rsv();
+                });
+        });
     },
+
+    downloadAllSongs()
+    {
+        let songsiter = this.songs_meta[Symbol.iterator]();
+        const max_concurrency = 10;
+        let concurrency = 0;
+
+        const that = this;
+        let downloadSong = co.wrap(function* () {
+            while (true) {
+                const {value, done} = songsiter.next();
+                if (done) return;
+                yield co(function* (title, url, sha256) {
+                    if (that.local_songs[title] && that.local_songs[title] === sha256) {
+                        utils.loginfo("Song %s has already been downloaded", title);
+                        return;
+                    }
+
+                    yield new Promise((rsv, rej) => {
+                        http.get(url, function (res) {
+                            if (res.statusCode !== 200) {
+                                utils.logerror("Song(%s) with url %s does not exists!", title, url);
+                                res.pipe(through2((ck, enc, cb) => cb())).on('end', rsv).on('error', rej); // swallow body
+                                return;
+                            }
+
+                            utils.loginfo("Write song:", title);
+                            res.pipe(fsco.createWriteStream(util.format('%s.mp3', title))
+                                .on('finish', rsv)
+                                .on('error', rej));
+                        });
+                    });
+
+                    utils.loginfo("Writing song finish:", title);
+                }, value.title, value.url, value.sha256);
+            }
+        });
+
+        co(function* () {
+            that.local_songs = JSON.parse(yield fsco.readFile('local_songs.json'));
+            utils.logtips("Download starts", that.local_songs);
+            let downs = [];
+            for (let concurrency = 0; concurrency < max_concurrency; ++concurrency) {
+                downs.push(downloadSong());
+            }
+
+            yield Promise.all(downs);
+
+            yield fsco.writeFile('local_songs.json', JSON.stringify(that.local_songs));
+
+            utils.logtips("Download complete!!");
+        });
+    }
 };
 
 const argv = require('minimist')(process.argv.slice(2))
@@ -232,8 +307,44 @@ if (!argv.u || !argv.p) {
     console.error("-u <username> -p <password>");
     process.exit(1);
 }
+
 var sl = new DoubanFMSongList();
+/*
+//sl.logout();
+//process.exit(1);
 sl.login({name:argv.u, password:argv.p});
 sl.getSongIDs();
-sl.getAllSongInfo();
-sl.logout();
+sl.getAllSongInfo().then(() => {
+    sl.downloadAllSongs();
+    sl.logout();
+});
+*/
+
+fsco.readFile('redheart1.txt').then((data) => {
+    data = data.toString();
+    let lines = data.split('\n');
+    sl.songs_meta = {}
+    sl.songs_meta[Symbol.iterator] = function* () {
+        for (let i in this)
+            yield this[i];
+    }.bind(sl.songs_meta);
+    let sid = 0;
+    for (let l of lines) {
+        const sp1 = l.indexOf('>');
+        const sp2 = l.indexOf(']');
+        const sp3 = l.indexOf('}');
+        if (sp1 < 0)
+            continue;
+        let s = {
+            title: l.slice(1, sp1),
+            url: l.slice(sp1+2, sp2),
+            sha256: l.slice(sp2+2, sp3)
+        };
+        //console.log("SS", s);
+        sl.songs_meta[sid] = s;
+        ++sid;
+    }
+
+
+    sl.downloadAllSongs();
+});
