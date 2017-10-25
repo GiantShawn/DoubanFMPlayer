@@ -260,7 +260,6 @@ DoubanFMSongList.prototype = {
         let downloadSong = co.wrap(function* (threadid) {
             while (true) {
                 const {value, done} = songsiter.next();
-                utils.logtips("Next Song(%d): ", threadid, value ? value.title : null, done);
                 if (done) {
                     utils.logtips("Thread exit(%d).", threadid);
                     return;
