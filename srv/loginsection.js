@@ -5,8 +5,10 @@ import * as lo from 'lodash';
 import { SDKPackage } from './sdklib';
 import * as utils from '../lib/utils';
 import * as fsco from 'mz/fs';
+import * as fs from 'fs';
 import co from 'co';
 import through2 from 'through2';
+import eos from 'end-of-stream';
 import * as util from 'util';
 
 
@@ -251,53 +253,86 @@ DoubanFMSongList.prototype = {
     downloadAllSongs()
     {
         let songsiter = this.songs_meta[Symbol.iterator]();
-        const max_concurrency = 10;
+        const max_concurrency = 50;
         let concurrency = 0;
 
         const that = this;
-        let downloadSong = co.wrap(function* () {
+        let downloadSong = co.wrap(function* (threadid) {
             while (true) {
                 const {value, done} = songsiter.next();
-                if (done) return;
+                utils.logtips("Next Song(%d): ", threadid, value ? value.title : null, done);
+                if (done) {
+                    utils.logtips("Thread exit(%d).", threadid);
+                    return;
+                }
                 yield co(function* (title, url, sha256) {
+                    title = title.replace(/\//g, '__');
                     if (that.local_songs[title] && that.local_songs[title] === sha256) {
                         utils.loginfo("Song %s has already been downloaded", title);
                         return;
                     }
 
-                    yield new Promise((rsv, rej) => {
-                        http.get(url, function (res) {
-                            if (res.statusCode !== 200) {
-                                utils.logerror("Song(%s) with url %s does not exists!", title, url);
-                                res.pipe(through2((ck, enc, cb) => cb())).on('end', rsv).on('error', rej); // swallow body
-                                return;
-                            }
+                    try {
+                        yield new Promise((rsv, rej) => {
+                            utils.loginfo("Gonna download song (%d)(%s)[%s]", threadid, title, url);
+                            let req = http.get(url, function (res, err) {
+                                if (res.statusCode !== 200) {
+                                    utils.logerror("Song(%s) with url %s does not exists!", title, url);
+                                    //res.pipe(through2((ck, enc, cb) => cb())).on('end', rsv).on('error', rej); // swallow body
+                                    req.abort();
+                                    rej(new Error(util.format("Song(%s) not found at: ", title, url)));
+                                    return;
+                                }
 
-                            utils.loginfo("Write song:", title);
-                            res.pipe(fsco.createWriteStream(util.format('%s.mp3', title))
-                                .on('finish', rsv)
-                                .on('error', rej));
+                                utils.loginfo("Gonna write song(%d):", threadid, title);
+                                let timeout_timer = setTimeout(() => {
+                                    res.unpipe(out_file);
+                                    req.abort();
+                                    utils.logerror("Song download timeout(%d):", threadid, title, url);
+                                    rej(new Error(util.format("Song(%s) download timeout[%s]", title, url)));
+                                }, 60000); // 70 seconds
+
+                                let out_file = fs.createWriteStream(util.format('%s.mp3', title));
+                                res.pipe(out_file)
+                                    .on('close', () => {
+                                        clearTimeout(timeout_timer);
+                                        rsv();
+                                    })
+                                    .on('error', (e) => {
+                                        clearTimeout(timeout_timer);
+                                        rej(e);
+                                    });
+                                res.once('error', (e) => { out_file.emit('error', e); });
+                            }).on('error', (e) => {
+                                utils.logerror("Get HTTP Error(%d):", threadid, title, e);
+                                rej(e);
+                            });
                         });
-                    });
 
-                    utils.loginfo("Writing song finish:", title);
+                        that.local_songs[title] = sha256;
+
+                        utils.loginfo("Writing song finish(%d):", threadid, title);
+                    } catch (e) {
+                        utils.logerror("Download error happened in thread(%d) for (%s)[%s]", threadid, title, url, e);
+                    }
                 }, value.title, value.url, value.sha256);
             }
         });
 
         co(function* () {
             that.local_songs = JSON.parse(yield fsco.readFile('local_songs.json'));
-            utils.logtips("Download starts", that.local_songs);
+            utils.logtips("Download starts");
             let downs = [];
             for (let concurrency = 0; concurrency < max_concurrency; ++concurrency) {
-                downs.push(downloadSong());
+                downs.push(downloadSong(concurrency));
             }
 
-            yield Promise.all(downs);
+            yield downs;
+            utils.logtips("Download complete!!");
 
             yield fsco.writeFile('local_songs.json', JSON.stringify(that.local_songs));
+            utils.logtips("Done");
 
-            utils.logtips("Download complete!!");
         });
     }
 };
@@ -309,7 +344,6 @@ if (!argv.u || !argv.p) {
 }
 
 var sl = new DoubanFMSongList();
-/*
 //sl.logout();
 //process.exit(1);
 sl.login({name:argv.u, password:argv.p});
@@ -318,8 +352,8 @@ sl.getAllSongInfo().then(() => {
     sl.downloadAllSongs();
     sl.logout();
 });
-*/
 
+/*
 fsco.readFile('redheart1.txt').then((data) => {
     data = data.toString();
     let lines = data.split('\n');
@@ -331,8 +365,8 @@ fsco.readFile('redheart1.txt').then((data) => {
     let sid = 0;
     for (let l of lines) {
         const sp1 = l.indexOf('>');
-        const sp2 = l.indexOf(']');
-        const sp3 = l.indexOf('}');
+        const sp2 = l.indexOf(']', sp1);
+        const sp3 = l.indexOf('}', sp2);
         if (sp1 < 0)
             continue;
         let s = {
@@ -348,3 +382,4 @@ fsco.readFile('redheart1.txt').then((data) => {
 
     sl.downloadAllSongs();
 });
+*/
